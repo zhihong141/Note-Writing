@@ -8,8 +8,8 @@
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,sans-serif;background:#f6f6f6;min-height:100vh;display:flex;justify-content:center;padding:20px;color:#111;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
-.app{width:680px;max-width:100%}
-.header{position:sticky;top:0;background:#f6f6f6;z-index:5;display:flex;justify-content:space-between;margin-bottom:10px}
+.app{width:680px;max-width:100%;max-height:calc(100vh - 140px);overflow-y:auto;padding-right:6px}
+.header{position:sticky;top:0;background:#f6f6f6;z-index:5;display:flex;justify-content:space-between;margin-bottom:10px;padding-bottom:6px}
 .title{font-family:"Plus Jakarta Sans";font-size:26px;font-weight:600}
 .search{border:1px solid #e5e5e5;padding:10px;border-radius:12px;background:white}
 .sectionLabel{font-size:11px;letter-spacing:1.6px;color:#777;margin:18px 6px 6px;font-weight:500;text-transform:uppercase}
@@ -21,9 +21,9 @@ body{margin:0;font-family:Inter,sans-serif;background:#f6f6f6;min-height:100vh;d
 .dragHandle{position:absolute;left:8px;top:10px;cursor:grab;color:#aaa}
 .note.dragging{opacity:.5}
 .placeholder{height:70px;border:2px dashed #ccc;border-radius:14px}
-.noteTitle{font-family:"Plus Jakarta Sans";font-size:16px;font-weight:600;margin-bottom:4px;margin-left:18px;letter-spacing:-0.2px;color:#0a0a0a}
-.notePreview{font-size:14px;color:#333;white-space:pre-wrap;margin-left:18px;line-height:1.55;letter-spacing:.1px;margin-top:2px}
-.noteFull{display:none;margin-top:8px;white-space:pre-wrap;margin-left:18px}
+.noteTitle{font-family:"Plus Jakarta Sans";font-size:16px;font-weight:600;margin-bottom:4px;margin-left:18px;margin-right:220px;letter-spacing:-0.2px;color:#0a0a0a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notePreview{font-size:14px;color:#333;white-space:pre-wrap;margin-left:18px;margin-right:220px;line-height:1.55;letter-spacing:.1px;margin-top:2px;word-break:break-word}
+.noteFull{display:none;margin-top:8px;white-space:pre-wrap;margin-left:18px;margin-right:220px;line-height:1.6}
 .note.expanded .noteFull{display:block}
 .note.expanded .notePreview{display:none}
 .noteMeta{position:absolute;bottom:8px;left:18px;font-size:11px;color:#111;opacity:.6;letter-spacing:.2px}
