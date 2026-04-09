@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notes</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,sans-serif;background:#f6f6f6;min-height:100vh;display:flex;justify-content:center;padding:20px;color:#111;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+.app{width:680px;max-width:100%}
+.header{position:sticky;top:0;background:#f6f6f6;z-index:5;display:flex;justify-content:space-between;margin-bottom:10px}
+.title{font-family:"Plus Jakarta Sans";font-size:26px;font-weight:600}
+.search{border:1px solid #e5e5e5;padding:10px;border-radius:12px;background:white}
+.sectionLabel{font-size:11px;letter-spacing:1.6px;color:#777;margin:18px 6px 6px;font-weight:500;text-transform:uppercase}
+.notes{display:flex;flex-direction:column;gap:12px}
+.archivedGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:12px}
+.archivedCard{height:90px;border-radius:18px;border:1px solid #e2e2e2;background:white;display:flex;align-items:center;justify-content:center;font-size:12px;color:#777;cursor:pointer;transition:.25s}
+.archivedCard:hover{transform:scale(1.05);box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.note{background:white;border:1px solid #eaeaea;border-radius:16px;padding:16px 16px 36px;box-shadow:0 4px 14px rgba(0,0,0,.04);position:relative}
+.dragHandle{position:absolute;left:8px;top:10px;cursor:grab;color:#aaa}
+.note.dragging{opacity:.5}
+.placeholder{height:70px;border:2px dashed #ccc;border-radius:14px}
+.noteTitle{font-family:"Plus Jakarta Sans";font-size:16px;font-weight:600;margin-bottom:4px;margin-left:18px;letter-spacing:-0.2px;color:#0a0a0a}
+.notePreview{font-size:14px;color:#333;white-space:pre-wrap;margin-left:18px;line-height:1.55;letter-spacing:.1px;margin-top:2px}
+.noteFull{display:none;margin-top:8px;white-space:pre-wrap;margin-left:18px}
+.note.expanded .noteFull{display:block}
+.note.expanded .notePreview{display:none}
+.noteMeta{position:absolute;bottom:8px;left:18px;font-size:11px;color:#111;opacity:.6;letter-spacing:.2px}
+.delete,.pin,.archive,.lock,.up,.down{position:absolute;border:none;width:34px;height:34px;border-radius:10px;background:white;cursor:pointer;display:flex;align-items:center;justify-content:center;border:1px solid #e8e8e8}
+.delete{right:8px;top:8px}
+.pin{right:46px;top:8px}
+.archive{right:84px;top:8px}
+.lock{right:122px;top:8px}
+.up{right:160px;top:8px}
+.down{right:198px;top:8px}
+.pinned{border:1px solid #111}
+.floatingInput{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:680px;max-width:94%;background:white;border:1px solid #e5e5e5;border-radius:18px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+.subjectInput{border:none;font-family:"Plus Jakarta Sans";font-weight:600;font-size:15px;outline:none;width:100%;letter-spacing:-0.15px}
+.inputRow{display:flex;gap:8px}
+textarea{flex:1;border:none;font-size:15px;outline:none;resize:none;line-height:1.6;letter-spacing:.1px}
+.addBtn{border:none;background:#111;color:white;padding:10px 18px;border-radius:12px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="header">
+<div class="title">Notes</div>
+<input class="search" id="search" placeholder="Search">
+</div>
+<div class="sectionLabel">Pinned</div>
+<div id="pinned" class="notes"></div>
+<div class="sectionLabel">Notes</div>
+<div id="notes" class="notes"></div>
+<div class="sectionLabel">Archived</div>
+<div id="archived" class="archivedGrid"></div>
+<div id="toast" style="position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:black;color:white;padding:10px 16px;border-radius:12px;font-size:13px;opacity:0;transition:.3s;z-index:2000;">Archived • <span id="undo" style="text-decoration:underline;cursor:pointer;margin-left:6px">Undo</span></div>
+</div>
+<div class="floatingInput">
+<input id="subject" class="subjectInput" placeholder="Title (optional)">
+<div class="inputRow">
+<textarea id="input" placeholder="Write note..."></textarea>
+<button class="addBtn" id="addBtn">Add</button>
+</div>
+</div>
+<script>
+const input=document.getElementById("input");
+const subject=document.getElementById("subject");
+const search=document.getElementById("search");
+const addBtn=document.getElementById("addBtn");
+const undo=document.getElementById("undo");
+const toast=document.getElementById("toast");
+const pinnedBox=document.getElementById("pinned");
+const notesBox=document.getElementById("notes");
+const archivedBox=document.getElementById("archived");
+let notes=JSON.parse(localStorage.getItem("minimal_notes")||"[]");
+let dragItem=null;
+let placeholder=null;
+let lastArchived=null;
+function save(){localStorage.setItem("minimal_notes",JSON.stringify(notes));}
+function redact(text){return (text||"").split("\n").map(l=>"█".repeat(Math.max(6,Math.min(l.length,40)))).join("\n");}
+function createNote(n){
+const div=document.createElement("div");
+div.className="note";
+if(n.pinned) div.classList.add("pinned");
+const handle=document.createElement("div");
+handle.className="dragHandle";
+handle.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.8"><circle cx="9" cy="5" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="19" r="1"/></svg>';
+handle.draggable=true;
+handle.addEventListener("dragstart",()=>{
+dragItem=n;
+div.classList.add("dragging");
+placeholder=document.createElement("div");
+placeholder.className="placeholder";
+div.parentNode.insertBefore(placeholder,div.nextSibling);
+});
+handle.addEventListener("dragend",()=>{
+div.classList.remove("dragging");
+if(placeholder){
+let container=placeholder.parentNode;
+let items=[...container.children].filter(el=>el.classList.contains("note")||el.classList.contains("placeholder"));
+let newIndex=items.indexOf(placeholder);
+let oldIndex=notes.indexOf(dragItem);
+if(newIndex>-1&&oldIndex>-1){notes.splice(oldIndex,1);notes.splice(newIndex,0,dragItem);} 
+placeholder.remove();
+placeholder=null;
+}
+save();render();
+});
+const title=document.createElement("div");
+title.className="noteTitle";
+const preview=document.createElement("div");
+preview.className="notePreview";
+const full=document.createElement("div");
+full.className="noteFull";
+if(n.locked && !n.revealed){
+title.textContent="████████";
+preview.textContent=redact(n.text);
+full.textContent="Locked";
+}else{
+title.textContent=n.subject || (n.text||"").split("\n")[0];
+preview.textContent=n.text;
+full.textContent=n.text;
+}
+const meta=document.createElement("div");
+meta.className="noteMeta";
+meta.textContent=new Date(n.created).toLocaleDateString()+" • "+new Date(n.created).toLocaleTimeString();
+div.addEventListener("click",()=>{if(n.locked && !n.revealed) return;div.classList.toggle("expanded");});
+div.addEventListener("dragover",e=>{
+e.preventDefault();
+if(!placeholder) return;
+let box=div.getBoundingClientRect();
+let offset=e.clientY-box.top;
+if(offset>box.height/2){div.parentNode.insertBefore(placeholder,div.nextSibling);}else{div.parentNode.insertBefore(placeholder,div);} 
+});
+function btn(icon,cls,fn){let b=document.createElement("button");b.className=cls;b.innerHTML=icon;b.onclick=e=>{e.stopPropagation();fn();};return b;}
+const del=btn('<svg width="14" height="14" viewBox="0 0 24 24" stroke="black" fill="none" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>',"delete",()=>{let i=notes.indexOf(n);if(i>-1){notes.splice(i,1);}save();render();});
+const pin=btn('<svg width="15" height="15" viewBox="0 0 24 24" stroke="black" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M5 3l14 14"/><path d="M9 3l6 6-3 3-6-6z"/></svg>',"pin",()=>{n.pinned=!n.pinned;save();render();});
+const archive=btn('<svg width="15" height="15" viewBox="0 0 24 24" stroke="black" fill="none" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="4"/><path d="M5 8v11h14V8"/></svg>',"archive",()=>{n.archived=!n.archived;if(n.archived){lastArchived=n;showToast();}save();render();});
+const lock=btn('<svg width="15" height="15" viewBox="0 0 24 24" stroke="black" fill="none" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 118 0v4"/></svg>',"lock",()=>{
+if(!n.locked){let p=prompt("Set password:");if(p){n.locked=true;n.password=p;n.revealed=false;}}
+else{let p=prompt("Enter password:");if(p===n.password){n.revealed=!n.revealed;}else if(p!==null){alert("Wrong password");}}
+save();render();});
+const up=btn('<svg width="15" height="15" viewBox="0 0 24 24" stroke="black" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>',"up",()=>{let i=notes.indexOf(n);if(i>0){[notes[i-1],notes[i]]=[notes[i],notes[i-1]];save();render();}});
+const down=btn('<svg width="15" height="15" viewBox="0 0 24 24" stroke="black" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>',"down",()=>{let i=notes.indexOf(n);if(i>-1 && i<notes.length-1){[notes[i+1],notes[i]]=[notes[i],notes[i+1]];save();render();}});
+div.append(handle,title,preview,full,meta,del,pin,archive,lock,up,down);
+return div;
+}
+function render(){
+let q=(search.value||"").toLowerCase();
+pinnedBox.innerHTML="";
+notesBox.innerHTML="";
+archivedBox.innerHTML="";
+let pinned=notes.filter(n=>n.pinned && !n.archived && (n.text||"").toLowerCase().includes(q));
+let normal=notes.filter(n=>!n.pinned && !n.archived && (n.text||"").toLowerCase().includes(q));
+let archived=notes.filter(n=>n.archived && (n.text||"").toLowerCase().includes(q));
+pinned.forEach(x=>pinnedBox.appendChild(createNote(x)));
+normal.forEach(x=>notesBox.appendChild(createNote(x)));
+archived.forEach(n=>{
+let card=document.createElement("div");
+card.className="archivedCard";
+if(n.locked && !n.revealed){card.textContent="████";}else{card.textContent=(n.subject || (n.text||"").substring(0,12));}
+card.onclick=()=>{
+n.archived=false;
+save();
+render();
+setTimeout(()=>{
+let target=[...document.querySelectorAll('.noteTitle')].find(el=>el.textContent=== (n.subject || (n.text||"").split("\n")[0]));
+if(target) target.parentNode.classList.add("expanded");
+},50);
+};
+archivedBox.appendChild(card);
+});
+}
+function addNote(){
+let text=input.value.trim();
+if(!text) return;
+notes.unshift({subject:subject.value.trim(),text:text,pinned:false,archived:false,locked:false,revealed:false,password:null,created:Date.now()});
+input.value="";
+subject.value="";
+save();
+render();
+}
+addBtn.onclick=addNote;
+search.oninput=render;
+undo.onclick=()=>{if(lastArchived){lastArchived.archived=false;save();render();hideToast();}};
+function showToast(){toast.style.opacity=1;setTimeout(hideToast,4000);} 
+function hideToast(){toast.style.opacity=0;}
+render();
+</script>
+</body>
+</html>
